@@ -41,6 +41,7 @@ INSTALL_REQUIRES = ['numpy >= 1.10.1',
                     'pandas >= 0.16.0',
                     'pytz',
                     'six',
+                    'scipy', 'tables', 'numba', 'siphon', 'netcdf4',
                     ]
 TESTS_REQUIRE = ['pytest', 'pytest-cov', 'pytest-mock', 'nose']
 EXTRAS_REQUIRE = {

@@ -1,0 +1,10 @@
+version: '3'
+services:
+  conda:
+    restart: always
+    image: continuumio/miniconda3:latest
+    container_name: miniconda3
+    volumes:
+      - "${PWD}:/root/pvlib-python"
+    working_dir: "/root"
+    command: ./pvlib-python/test-install.sh
