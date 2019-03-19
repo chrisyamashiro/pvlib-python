@@ -652,7 +652,7 @@ class ForecastModel(object):
 class DarkSky(object):
 
     url = 'https://api.darksky.net/forecast/{secret_key}/{point}'
-    _resolutions = ['minutely', 'hourly', 'daily']
+    _resolutions = ['hourly']
     _excludables = _resolutions + ['currently', 'alerts', 'flags']
 
     output_variables = [
