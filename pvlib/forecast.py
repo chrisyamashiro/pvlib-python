@@ -675,7 +675,7 @@ class DarkSky(object):
     def __init__(self, secret_key):
         self._secret_key = secret_key
 
-    def get_data(self, latitude, longitude, start=None, resolution='hourly', extend=False):
+    def get_data(self, latitude, longitude, start=None, resolution='hourly', extend=True):
         if resolution not in self._resolutions:
             raise ValueError(
                 'resolution must be in {resolutions}. Got {resolution}.'.format(
@@ -735,7 +735,7 @@ class DarkSky(object):
         irradiance = cls.cloud_cover_to_irradiance_clearsky_scaling(data[cls.cloud_cover], location)
         return data.merge(irradiance, left_index=True, right_index=True)[cls.output_variables]
 
-    def get_processed_data(self, latitude, longitude, start=None, resolution='hourly', extend=False):
+    def get_processed_data(self, latitude, longitude, start=None, resolution='hourly', extend=True):
         data = self.get_data(latitude, longitude, start, resolution, extend)
         return self.process_data(
             data,
