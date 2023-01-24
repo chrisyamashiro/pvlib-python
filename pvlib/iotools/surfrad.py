@@ -2,13 +2,7 @@
 Import functions for NOAA SURFRAD Data.
 """
 import io
-
-try:
-    # python 2 compatibility
-    from urllib2 import urlopen, Request
-except ImportError:
-    from urllib.request import urlopen, Request
-
+from urllib.request import urlopen, Request
 import pandas as pd
 import numpy as np
 
@@ -44,15 +38,16 @@ VARIABLE_MAP = {
 
 
 def read_surfrad(filename, map_variables=True):
-    """Read in a daily NOAA SURFRAD[1] file.
+    """Read in a daily NOAA SURFRAD file.  The SURFRAD network is
+    described in [1]_.
 
     Parameters
     ----------
     filename: str
-        Filepath or url.
+        Filepath or URL. URL can be either FTP or HTTP.
     map_variables: bool
         When true, renames columns of the Dataframe to pvlib variable names
-        where applicable. See variable SURFRAD_COLUMNS.
+        where applicable. See variable :const:`VARIABLE_MAP`.
 
     Returns
     -------
@@ -118,21 +113,25 @@ def read_surfrad(filename, map_variables=True):
     =======================  ======  ==========================================
 
     See README files located in the station directories in the SURFRAD
-    data archives[2] for details on SURFRAD daily data files.
+    data archives [2]_ for details on SURFRAD daily data files. In addition to
+    the FTP server, the SURFRAD files are also available via HTTP access [3]_.
 
     References
     ----------
-    [1] NOAA Earth System Research Laboratory Surface Radiation Budget Network
-        `SURFRAD Homepage <https://www.esrl.noaa.gov/gmd/grad/surfrad/>`_
-    [2] NOAA SURFRAD Data Archive
-        `SURFRAD Archive <ftp://aftp.cmdl.noaa.gov/data/radiation/surfrad/>`_
+    .. [1] NOAA Earth System Research Laboratory Surface Radiation Budget
+       Network
+       `SURFRAD Homepage <https://www.esrl.noaa.gov/gmd/grad/surfrad/>`_
+    .. [2] NOAA SURFRAD Data Archive
+       `SURFRAD Archive <ftp://aftp.cmdl.noaa.gov/data/radiation/surfrad/>`_
+    .. [3] `NOAA SURFRAD HTTP Index
+       <https://gml.noaa.gov/aftp/data/radiation/surfrad/>`_
     """
-    if filename.startswith('ftp'):
+    if str(filename).startswith('ftp') or str(filename).startswith('http'):
         req = Request(filename)
         response = urlopen(req)
         file_buffer = io.StringIO(response.read().decode(errors='ignore'))
     else:
-        file_buffer = open(filename, 'r')
+        file_buffer = open(str(filename), 'r')
 
     # Read and parse the first two lines to build the metadata dict.
     station = file_buffer.readline()

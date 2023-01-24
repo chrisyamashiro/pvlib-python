@@ -4,15 +4,17 @@ This module contains the Location class.
 
 # Will Holmgren, University of Arizona, 2014-2016.
 
+import os
 import datetime
 
 import pandas as pd
 import pytz
+import h5py
 
 from pvlib import solarposition, clearsky, atmosphere, irradiance
+from pvlib.tools import _degrees_to_index
 
-
-class Location(object):
+class Location:
     """
     Location objects are convenient containers for latitude, longitude,
     timezone, and altitude data associated with a particular
@@ -48,17 +50,12 @@ class Location(object):
     name : None or string, default None.
         Sets the name attribute of the Location object.
 
-    **kwargs
-        Arbitrary keyword arguments.
-        Included for compatibility, but not used.
-
     See also
     --------
-    pvsystem.PVSystem
+    pvlib.pvsystem.PVSystem
     """
 
-    def __init__(self, latitude, longitude, tz='UTC', altitude=0,
-                 name=None, **kwargs):
+    def __init__(self, latitude, longitude, tz='UTC', altitude=0, name=None):
 
         self.latitude = latitude
         self.longitude = longitude
@@ -66,6 +63,9 @@ class Location(object):
         if isinstance(tz, str):
             self.tz = tz
             self.pytz = pytz.timezone(tz)
+        elif isinstance(tz, datetime.timezone):
+            self.tz = 'UTC'
+            self.pytz = pytz.UTC
         elif isinstance(tz, datetime.tzinfo):
             self.tz = tz.zone
             self.pytz = tz
@@ -82,7 +82,7 @@ class Location(object):
     def __repr__(self):
         attrs = ['name', 'latitude', 'longitude', 'altitude', 'tz']
         return ('Location: \n  ' + '\n  '.join(
-            ('{}: {}'.format(attr, getattr(self, attr)) for attr in attrs)))
+            f'{attr}: {getattr(self, attr)}' for attr in attrs))
 
     @classmethod
     def from_tmy(cls, tmy_metadata, tmy_data=None, **kwargs):
@@ -99,8 +99,7 @@ class Location(object):
 
         Returns
         -------
-        Location object (or the child class of Location that you
-        called this method from).
+        Location
         """
         # not complete, but hopefully you get the idea.
         # might need code to handle the difference between tmy2 and tmy3
@@ -125,30 +124,68 @@ class Location(object):
         # not sure if this should be assigned regardless of input.
         if tmy_data is not None:
             new_object.tmy_data = tmy_data
+            new_object.weather = tmy_data
+
+        return new_object
+
+    @classmethod
+    def from_epw(cls, metadata, data=None, **kwargs):
+        """
+        Create a Location object based on a metadata
+        dictionary from epw data readers.
+
+        Parameters
+        ----------
+        metadata : dict
+            Returned from epw.read_epw
+        data : None or DataFrame, default None
+            Optionally attach the epw data to this object.
+
+        Returns
+        -------
+        Location object (or the child class of Location that you
+        called this method from).
+        """
+
+        latitude = metadata['latitude']
+        longitude = metadata['longitude']
+
+        name = metadata['city']
+
+        tz = metadata['TZ']
+        altitude = metadata['altitude']
+
+        new_object = cls(latitude, longitude, tz=tz, altitude=altitude,
+                         name=name, **kwargs)
+
+        if data is not None:
+            new_object.weather = data
 
         return new_object
 
     def get_solarposition(self, times, pressure=None, temperature=12,
                           **kwargs):
         """
-        Uses the :py:func:`solarposition.get_solarposition` function
+        Uses the :py:func:`pvlib.solarposition.get_solarposition` function
         to calculate the solar zenith, azimuth, etc. at this location.
 
         Parameters
         ----------
-        times : DatetimeIndex
+        times : pandas.DatetimeIndex
+            Must be localized or UTC will be assumed.
         pressure : None, float, or array-like, default None
             If None, pressure will be calculated using
-            :py:func:`atmosphere.alt2pres` and ``self.altitude``.
+            :py:func:`pvlib.atmosphere.alt2pres` and ``self.altitude``.
         temperature : None, float, or array-like, default 12
 
-        kwargs passed to :py:func:`solarposition.get_solarposition`
+        kwargs
+            passed to :py:func:`pvlib.solarposition.get_solarposition`
 
         Returns
         -------
         solar_position : DataFrame
             Columns depend on the ``method`` kwarg, but always include
-            ``zenith`` and ``azimuth``.
+            ``zenith`` and ``azimuth``. The angles are in degrees.
         """
         if pressure is None:
             pressure = atmosphere.alt2pres(self.altitude)
@@ -178,8 +215,9 @@ class Location(object):
         dni_extra: None or numeric, default None
             If None, will be calculated from times.
 
-        kwargs passed to the relevant functions. Climatological values
-        are assumed in many cases. See source code for details!
+        kwargs
+            Extra parameters passed to the relevant functions. Climatological
+            values are assumed in many cases. See source code for details!
 
         Returns
         -------
@@ -195,8 +233,7 @@ class Location(object):
             pressure = atmosphere.alt2pres(self.altitude)
 
         if solar_position is None:
-            solar_position = self.get_solarposition(times, pressure=pressure,
-                                                    **kwargs)
+            solar_position = self.get_solarposition(times, pressure=pressure)
 
         apparent_zenith = solar_position['apparent_zenith']
         apparent_elevation = solar_position['apparent_elevation']
@@ -247,12 +284,18 @@ class Location(object):
         solar_position : None or DataFrame, default None
             DataFrame with with columns 'apparent_zenith', 'zenith'.
         model : str, default 'kastenyoung1989'
-            Relative airmass model
+            Relative airmass model. See
+            :py:func:`pvlib.atmosphere.get_relative_airmass`
+            for a list of available models.
 
         Returns
         -------
         airmass : DataFrame
             Columns are 'airmass_relative', 'airmass_absolute'
+
+        See also
+        --------
+        pvlib.atmosphere.get_relative_airmass
         """
 
         if solar_position is None:
@@ -263,7 +306,7 @@ class Location(object):
         elif model in atmosphere.TRUE_ZENITH_MODELS:
             zenith = solar_position['zenith']
         else:
-            raise ValueError('{} is not a valid airmass model'.format(model))
+            raise ValueError(f'{model} is not a valid airmass model')
 
         airmass_relative = atmosphere.get_relative_airmass(zenith, model)
 
@@ -315,3 +358,88 @@ class Location(object):
                              'one of pyephem, spa, geometric'
                              .format(method))
         return result
+
+
+def lookup_altitude(latitude, longitude):
+    """
+    Look up location altitude from low-resolution altitude map
+    supplied with pvlib. The data for this map comes from multiple open data
+    sources with varying resolutions aggregated by Mapzen.
+
+    More details can be found here
+    https://github.com/tilezen/joerd/blob/master/docs/data-sources.md
+
+    Altitudes from this map are a coarse approximation and can have
+    significant errors (100+ meters) introduced by downsampling and
+    source data resolution.
+
+    Parameters
+    ----------
+    latitude : float.
+        Positive is north of the equator.
+        Use decimal degrees notation.
+
+    longitude : float.
+        Positive is east of the prime meridian.
+        Use decimal degrees notation.
+
+    Returns
+    -------
+    altitude : float
+        The altitude of the location in meters.
+
+    Notes
+    -----------
+    Attributions:
+
+    * ArcticDEM terrain data DEM(s) were created from DigitalGlobe, Inc.,
+      imagery and funded under National Science Foundation awards 1043681,
+      1559691, and 1542736;
+    * Australia terrain data © Commonwealth of Australia
+      (Geoscience Australia) 2017;
+    * Austria terrain data © offene Daten Österreichs - Digitales
+      Geländemodell (DGM) Österreich;
+    * Canada terrain data contains information licensed under the Open
+      Government Licence - Canada;
+    * Europe terrain data produced using Copernicus data and information
+      funded by the European Union - EU-DEM layers;
+    * Global ETOPO1 terrain data U.S. National Oceanic and Atmospheric
+      Administration
+    * Mexico terrain data source: INEGI, Continental relief, 2016;
+    * New Zealand terrain data Copyright 2011 Crown copyright (c) Land
+      Information New Zealand and the New Zealand Government
+      (All rights reserved);
+    * Norway terrain data © Kartverket;
+    * United Kingdom terrain data © Environment Agency copyright and/or
+      database right 2015. All rights reserved;
+    * United States 3DEP (formerly NED) and global GMTED2010 and SRTM
+      terrain data courtesy of the U.S. Geological Survey.
+
+    References
+    ----------
+    .. [1] `Mapzen, Linux foundation project for open data maps
+        <https://www.mapzen.com/>`_
+    .. [2] `Joerd, tool for downloading and processing DEMs, Used by Mapzen
+        <https://github.com/tilezen/joerd/>`_
+    .. [3] `AWS, Open Data Registry Terrain Tiles
+        <https://registry.opendata.aws/terrain-tiles/>`_
+
+    """
+
+    pvlib_path = os.path.dirname(os.path.abspath(__file__))
+    filepath = os.path.join(pvlib_path, 'data', 'Altitude.h5')
+
+    latitude_index = _degrees_to_index(latitude, coordinate='latitude')
+    longitude_index = _degrees_to_index(longitude, coordinate='longitude')
+
+    with h5py.File(filepath, 'r') as alt_h5_file:
+        alt = alt_h5_file['Altitude'][latitude_index, longitude_index]
+
+    # 255 is a special value that means nodata. Fallback to 0 if nodata.
+    if alt == 255:
+        return 0
+    # Altitude is encoded in 28 meter steps from -450 meters to 6561 meters
+    # There are 0-254 possible altitudes, with 255 reserved for nodata.
+    alt *= 28
+    alt -= 450
+    return float(alt)

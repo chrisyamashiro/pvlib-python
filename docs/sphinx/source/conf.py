@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # PVLIB_Python documentation build configuration file, created by
 # sphinx-quickstart on Fri Nov  7 15:56:33 2014.
@@ -15,20 +14,15 @@
 import sys
 import os
 
-# Mock modules so RTD works
-try:
-    from mock import Mock as MagicMock
-except ImportError:
-    from unittest.mock import MagicMock
+# for warning suppression
+import warnings
 
-class Mock(MagicMock):
-    @classmethod
-    def __getattr__(cls, name):
-        return Mock()
+# for generating GH links with linenumbers
+import inspect
 
-MOCK_MODULES = []
-sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
-
+# import distutils before calling pd.show_versions()
+# https://github.com/pypa/setuptools/issues/3044
+import distutils  # noqa: F401
 import pandas as pd
 pd.show_versions()
 
@@ -40,8 +34,7 @@ sys.path.insert(0, os.path.abspath('../../../'))
 
 # -- General configuration ------------------------------------------------
 
-# turns off numpydoc autosummary warnings
-numpydoc_show_class_members = False
+# use napoleon in lieu of numpydoc 2019-04-23
 
 # If your documentation needs a minimal Sphinx version, state it here.
 #needs_sphinx = '1.0'
@@ -55,11 +48,15 @@ extensions = [
     'sphinx.ext.viewcode',
     'sphinx.ext.intersphinx',
     'sphinx.ext.extlinks',
-    'numpydoc',
+    'sphinx.ext.napoleon',
     'sphinx.ext.autosummary',
     'IPython.sphinxext.ipython_directive',
-    'IPython.sphinxext.ipython_console_highlighting'
+    'IPython.sphinxext.ipython_console_highlighting',
+    'sphinx_gallery.gen_gallery',
+    'sphinx_toggleprompt',
 ]
+
+napoleon_use_rtype = False  # group rtype on same line together with return
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -74,8 +71,9 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'pvlib-python'
-copyright = u'2015, Sandia National Labs, Rob Andrews, University of Arizona, github contributors'
+project = 'pvlib python'
+copyright = \
+    '2013-2021, Sandia National Laboratories and pvlib python Development Team'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -132,20 +130,40 @@ autosummary_generate = True
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-# on_rtd is whether we are on readthedocs.org
-on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
-
-if not on_rtd:  # only import and set the theme if we're building docs locally
-    import sphinx_rtd_theme
-    html_theme = 'sphinx_rtd_theme'
-    html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
-else:
-    html_theme = 'default'
+html_theme = "pydata_sphinx_theme"
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.
-#html_theme_options = {}
+# https://pydata-sphinx-theme.rtfd.io/en/latest/user_guide/configuring.html
+html_theme_options = {
+    "github_url": "https://github.com/pvlib/pvlib-python",
+    "favicons": [
+        {"rel": "icon", "sizes": "16x16", "href": "favicon-16x16.png"},
+        {"rel": "icon", "sizes": "32x32", "href": "favicon-32x32.png"},
+    ],
+    "icon_links": [
+        {
+            "name": "StackOverflow",
+            "url": "https://stackoverflow.com/questions/tagged/pvlib",
+            "icon": "fab fa-stack-overflow",
+        },
+        {
+            "name": "Google Group",
+            "url": "https://groups.google.com/g/pvlib-python",
+            "icon": "fab fa-google",
+        },
+        {
+            "name": "PyPI",
+            "url": "https://pypi.org/project/pvlib/",
+            "icon": "fab fa-python",
+        },
+    ],
+    "use_edit_page_button": True,
+    "show_toc_level": 1,
+    "footer_items": ["copyright", "sphinx-version", "sidebar-ethical-ads"],
+    "left_sidebar_end": [],
+}
 
 # Add any paths that contain custom themes here, relative to this directory.
 #html_theme_path = []
@@ -159,7 +177,7 @@ else:
 
 # The name of an image file (relative to this directory) to place at the top
 # of the sidebar.
-#html_logo = None
+html_logo = '_images/pvlib_logo_horiz.png'
 
 # The name of an image file (within the static path) to use as favicon of the
 # docs.  This file should be a Windows icon file (.ico) being 16x16 or 32x32
@@ -185,7 +203,7 @@ html_static_path = ['_static']
 #html_use_smartypants = True
 
 # Custom sidebar templates, maps document names to template names.
-#html_sidebars = {}
+# html_sidebars = {}
 
 # Additional templates that should be rendered to pages, maps page names to
 # template names.
@@ -218,12 +236,18 @@ html_show_copyright = False
 #html_file_suffix = None
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'PVLIB_Pythondoc'
+htmlhelp_basename = 'pvlib_pythondoc'
 
-# A workaround for the responsive tables always having annoying scrollbars.
+
+# custom CSS workarounds
 def setup(app):
-    app.add_stylesheet("no_scrollbars.css")
-
+    # A workaround for the responsive tables always having annoying scrollbars.
+    app.add_css_file("no_scrollbars.css")
+    # Override footnote callout CSS to be normal text instead of superscript
+    # In-line links to references as numbers in brackets.
+    app.add_css_file("reference_format.css")
+    # Add a warning banner at the top of the page if viewing the "latest" docs
+    app.add_js_file("version-alert.js")
 
 # -- Options for LaTeX output ---------------------------------------------
 
@@ -242,8 +266,9 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-  ('index', 'PVLIB_Python.tex', u'PVLIB\\_Python Documentation',
-   u'Sandia National Labs, Rob Andrews, University of Arizona, github contributors', 'manual'),
+    ('index', 'pvlib_python.tex', 'pvlib\\_python Documentation',
+     'Sandia National Laboratoraties and pvlib python Development Team',
+     'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -267,20 +292,21 @@ latex_documents = [
 #latex_domain_indices = True
 
 # extlinks alias
-extlinks = {'issue': ('https://github.com/pvlib/pvlib-python/issues/%s',
-                      'GH'),
-            'wiki': ('https://github.com/pvlib/pvlib-python/wiki/%s',
-                     'wiki '),
-            'doi': ('http://dx.doi.org/%s', 'DOI: '),
-            'ghuser': ('https://github.com/%s', '@')}
+extlinks = {
+    'issue': ('https://github.com/pvlib/pvlib-python/issues/%s', 'GH'),
+    'pull': ('https://github.com/pvlib/pvlib-python/pull/%s', 'GH'),
+    'wiki': ('https://github.com/pvlib/pvlib-python/wiki/%s', 'wiki '),
+    'doi': ('http://dx.doi.org/%s', 'DOI: '),
+    'ghuser': ('https://github.com/%s', '@')
+}
 
 # -- Options for manual page output ---------------------------------------
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', 'pvlib_python', u'PVLIB_Python Documentation',
-     [u'Sandia National Labs, Rob Andrews, University of Arizona, github contributors'], 1)
+    ('index', 'pvlib_python', 'pvlib_python Documentation',
+     ['Sandia National Laboratoraties and pvlib python Development Team'], 1)
 ]
 
 # If true, show URL addresses after external links.
@@ -293,9 +319,10 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  ('index', 'PVLIB_Python', u'PVLIB_Python Documentation',
-   u'Sandia National Labs, Rob Andrews, University of Arizona, github contributors', 'PVLIB_Python', 'One line description of project.',
-   'Miscellaneous'),
+    ('index', 'pvlib python', 'pvlib python Documentation',
+     'Sandia National Laboratoraties and pvlib python Development Team',
+     'pvlib python', 'One line description of project.',
+     'Miscellaneous'),
 ]
 
 # Documents to append as an appendix to all manuals.
@@ -312,11 +339,130 @@ texinfo_documents = [
 
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {
-    'python': ('https://docs.python.org/3.7/', None),
-    'pandas': ('https://pandas.pydata.org/pandas-docs/stable/', None),
-    'numpy': ('https://docs.scipy.org/doc/numpy/', None),
+    'python': ('https://docs.python.org/3/', None),
+    'numpy': ('https://numpy.org/doc/stable/', None),
+    'scipy': ('https://docs.scipy.org/doc/scipy/reference/', None),
+    'pandas': ('https://pandas.pydata.org/pandas-docs/stable', None),
+    'matplotlib': ('https://matplotlib.org/stable', None),
 }
 
-nbsphinx_allow_errors = True
-
 ipython_warning_is_error = False
+
+# suppress "WARNING: Footnote [1] is not referenced." messages
+# https://github.com/pvlib/pvlib-python/issues/837
+suppress_warnings = ['ref.footnote']
+
+# settings for sphinx-gallery
+sphinx_gallery_conf = {
+    'examples_dirs': ['../../examples'],  # location of gallery scripts
+    'gallery_dirs': ['gallery'],  # location of generated output
+    # sphinx-gallery only shows plots from plot_*.py files by default:
+    # 'filename_pattern': '*.py',
+
+    # directory where function/class granular galleries are stored
+    'backreferences_dir': 'reference/generated/gallery_backreferences',
+
+    # Modules for which function/class level galleries are created. In
+    # this case only pvlib, could include others though.  must be tuple of str
+    'doc_module': ('pvlib',),
+}
+# supress warnings in gallery output
+# https://sphinx-gallery.github.io/stable/configuration.html
+warnings.filterwarnings("ignore", category=UserWarning,
+                        message='Matplotlib is currently using agg, which is a'
+                                ' non-GUI backend, so cannot show the figure.')
+
+# %% helper functions for intelligent "View on Github" linking
+# based on
+# https://gist.github.com/flying-sheep/b65875c0ce965fbdd1d9e5d0b9851ef1
+
+
+def get_obj_module(qualname):
+    """
+    Get a module/class/attribute and its original module by qualname.
+    Useful for looking up the original location when a function is imported
+    into an __init__.py
+
+    Examples
+    --------
+    >>> func, mod = get_obj_module("pvlib.iotools.read_midc")
+    >>> mod.__name__
+    'pvlib.iotools.midc'
+    """
+    modname = qualname
+    classname = None
+    attrname = None
+    while modname not in sys.modules:
+        attrname = classname
+        modname, classname = modname.rsplit('.', 1)
+
+    # retrieve object and find original module name
+    if classname:
+        cls = getattr(sys.modules[modname], classname)
+        modname = cls.__module__
+        obj = getattr(cls, attrname) if attrname else cls
+    else:
+        obj = None
+
+    return obj, sys.modules[modname]
+
+
+def get_linenos(obj):
+    """Get an object’s line numbers in its source code file"""
+    try:
+        lines, start = inspect.getsourcelines(obj)
+    except TypeError:  # obj is an attribute or None
+        return None, None
+    except OSError:  # obj listing cannot be found
+        # This happens for methods that are not explicitly defined
+        # such as the __init__ method for a dataclass
+        return None, None
+    else:
+        return start, start + len(lines) - 1
+
+
+def make_github_url(file_name):
+    """
+    Generate the appropriate GH link for a given docs page.  This function
+    is intended for use in sphinx template files.
+
+    The target URL is built differently based on the type of page.  The pydata
+    sphinx theme has a built-in `file_name` variable that looks like
+    "/docs/sphinx/source/api.rst" or "generated/pvlib.atmosphere.alt2pres.rst"
+    """
+
+    URL_BASE = "https://github.com/pvlib/pvlib-python/blob/main/"
+
+    # is it a gallery page?
+    if any(d in file_name for d in sphinx_gallery_conf['gallery_dirs']):
+        if file_name.split("/")[-1] == "index":
+            example_file = "README.rst"
+        else:
+            example_file = file_name.split("/")[-1].replace('.rst', '.py')
+        target_url = URL_BASE + "docs/examples/" + example_file
+
+    # is it an API autogen page?
+    elif "generated" in file_name:
+        # pagename looks like "generated/pvlib.atmosphere.alt2pres.rst"
+        qualname = file_name.split("/")[-1].replace('.rst', '')
+        obj, module = get_obj_module(qualname)
+        path = module.__name__.replace(".", "/") + ".py"
+        target_url = URL_BASE + path
+        # add line numbers if possible:
+        start, end = get_linenos(obj)
+        if start and end:
+            target_url += f'#L{start}-L{end}'
+
+    # Just a normal source RST page
+    else:
+        target_url = URL_BASE + "docs/sphinx/source/" + file_name
+
+    return target_url
+
+
+# variables to pass into the HTML templating engine; these are accessible from
+# _templates/breadcrumbs.html
+html_context = {
+    'make_github_url': make_github_url,
+    'edit_page_url_template': '{{ make_github_url(file_name) }}',
+}

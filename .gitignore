@@ -39,8 +39,10 @@ pvlib/spa_c_files/spa.h
 pvlib/spa_c_files/spa_tester.c
 
 # generated documentation
-docs/sphinx/source/generated
+docs/sphinx/source/reference/generated
+docs/sphinx/source/reference/*/generated
 docs/sphinx/source/savefig
+docs/sphinx/source/gallery
 
 # Installer logs
 pip-log.txt
@@ -77,15 +79,25 @@ coverage.xml
 *.h5
 
 
-#Datafiles
+# Datafiles
 *.csv
+# Ignore some csv
+!pvlib/data/*.csv
 
 # vi
 *.swp
 
-#Ignore some notebooks
+# Ignore some notebooks
 *.ipynb
 !docs/tutorials/*.ipynb
+
+# Ignore Mac DS_store files
+*.DS_Store
+
+# airspeed velocity
+env
+results
+
 
 #Environment
 .env*
